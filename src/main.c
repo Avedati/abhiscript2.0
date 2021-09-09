@@ -1,24 +1,8 @@
-#include <ctype.h>
+#include "../include/lexer.h"
+#include "../include/loop.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-enum TokenType {
-	T_NUMBER = 0,
-	T_FUNCTION
-};
-
-struct Token {
-	enum TokenType type;
-	double number_Value;
-	char* function_Name;
-};
-
-struct Loop {
-	int condition_Index;
-	int code_Start;
-	int code_End;
-};
 
 struct Function {
 	char* name;
@@ -44,40 +28,6 @@ struct Parser {
 	int index;
 	int loop_Depth;
 };
-
-struct Token* create_Token(enum TokenType type, double number_Value, char* function_Name) {
-	struct Token* token = malloc(sizeof(struct Token));
-	token->type = type;
-	if(type == T_NUMBER) {
-		token->number_Value = number_Value;
-		token->function_Name = NULL;
-	}
-	else if(type == T_FUNCTION) {
-		token->number_Value = 0;
-		token->function_Name = malloc(sizeof(char) * (strlen(function_Name) + 1));
-		strcpy(token->function_Name, function_Name);
-	}
-	return token;
-}
-
-void destroy_Token(struct Token* token) {
-	if(token->type == T_FUNCTION) {
-		free(token->function_Name);
-	}
-	free(token);
-}
-
-struct Loop* create_Loop(int condition_Index, int code_Start, int code_End) {
-	struct Loop* loop = malloc(sizeof(struct Loop));
-	loop->condition_Index = condition_Index;
-	loop->code_Start = code_Start;
-	loop->code_End = code_End;
-	return loop;
-}
-
-void destroy_Loop(struct Loop* loop) {
-	free(loop);
-}
 
 struct Function* create_Function(char* name, char** args, int n_Args, struct Token** tokens, int n_Tokens) {
 	struct Function* function = malloc(sizeof(struct Function));
@@ -203,60 +153,6 @@ void destroy_Parser(struct Parser* parser) {
 	free(parser);
 }
 
-struct Token** tokenize(char* expression, int* n_Tokens) {
-	struct Token** tokens = malloc(0);
-	*n_Tokens = 0;
-	for(int i=0;i<strlen(expression);i++) {
-		if(isdigit(expression[i]) || expression[i] == '.') {
-			int start = i;
-			int end;
-			for(end=i;end<strlen(expression) && (isdigit(expression[end]) || expression[end] == '.' || expression[end] == 'e' || expression[end] == 'E');end++);
-			char* number = malloc(sizeof(char) * (end - start + 1));
-			strncpy(number, &expression[start], end - start);
-			number[end - start] = 0;
-			// https://stackoverflow.com/questions/10075294/converting-string-to-a-double-variable-in-c
-			double number_Value;
-			sscanf(number, "%lf", &number_Value);
-			free(number);
-			tokens = realloc(tokens, sizeof(struct Token) * (*n_Tokens + 1));
-			tokens[(*n_Tokens)++] = create_Token(T_NUMBER, number_Value, NULL);
-			i = end - 1;
-		}
-		else if(expression[i] == '(' || expression[i] == ')') {
-			char function[2];
-			function[0] = expression[i];
-			function[1] = 0;
-			tokens = realloc(tokens, sizeof(struct Token) * (*n_Tokens + 1));
-			tokens[(*n_Tokens)++] = create_Token(T_FUNCTION, 0, function);
-		}
-		else if(!isspace(expression[i])) {
-			int start = i;
-			int end;
-			for(end=i;end<strlen(expression) && !isspace(expression[end]) && expression[end]!='(' && expression[end]!=')';end++);
-			char* function = malloc(sizeof(char) * (end - start + 1));
-			strncpy(function, &expression[start], end - start);
-			function[end - start] = 0;
-			tokens = realloc(tokens, sizeof(struct Token) * (*n_Tokens + 1));
-			tokens[(*n_Tokens)++] = create_Token(T_FUNCTION, 0, function);
-			free(function);
-			i = end - 1;
-		}
-	}
-	return tokens;
-}
-
-void display_Tokens(struct Token** tokens, int n_Tokens) {
-	printf("Recieved %d tokens.\n", n_Tokens);
-	for(int i=0;i<n_Tokens;i++) {
-		if(tokens[i]->type == T_NUMBER) {
-			printf("Token: (T_NUMBER, %f)\n", tokens[i]->number_Value);
-		}
-		else {
-			printf("Token: (T_FUNCTION, %s)\n", tokens[i]->function_Name);
-		}
-	}
-}
-
 double parse_Unit(struct Parser* parser) {
 	if(parser->n_Tokens == 0) { return 0; }
 	if(parser->tokens[parser->index]->type == T_NUMBER) {
@@ -348,6 +244,42 @@ double parse_Unit(struct Parser* parser) {
 			double v2 = parse_Unit(parser);
 			if(v1 == 0 || v2 == 0) { return 0; }
 			return 1;
+		}
+		else if(strcmp(parser->tokens[parser->index]->function_Name, "==") == 0) {
+			parser->index++;
+			double v1 = parse_Unit(parser);
+			double v2 = parse_Unit(parser);
+			return v1 == v2;
+		}
+		else if(strcmp(parser->tokens[parser->index]->function_Name, "!=") == 0) {
+			parser->index++;
+			double v1 = parse_Unit(parser);
+			double v2 = parse_Unit(parser);
+			return v1 != v2;
+		}
+		else if(strcmp(parser->tokens[parser->index]->function_Name, "<=") == 0) {
+			parser->index++;
+			double v1 = parse_Unit(parser);
+			double v2 = parse_Unit(parser);
+			return v1 <= v2;
+		}
+		else if(strcmp(parser->tokens[parser->index]->function_Name, ">=") == 0) {
+			parser->index++;
+			double v1 = parse_Unit(parser);
+			double v2 = parse_Unit(parser);
+			return v1 >= v2;
+		}
+		else if(strcmp(parser->tokens[parser->index]->function_Name, "<") == 0) {
+			parser->index++;
+			double v1 = parse_Unit(parser);
+			double v2 = parse_Unit(parser);
+			return v1 < v2;
+		}
+		else if(strcmp(parser->tokens[parser->index]->function_Name, ">") == 0) {
+			parser->index++;
+			double v1 = parse_Unit(parser);
+			double v2 = parse_Unit(parser);
+			return v1 > v2;
 		}
 		else if(strcmp(parser->tokens[parser->index]->function_Name, "if") == 0) {
 			parser->index++;
