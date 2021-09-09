@@ -2,3 +2,4 @@ INPUT
 bin/abhiscript2.0
 bin/abhiscript2.0.dSYM
 build/*.o
+.DS_Store
